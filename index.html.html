@@ -1,0 +1,544 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>자연관 단톡방</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* Layout: one-screen messenger — header / scrolling chat log / answer panel docked at the bottom */
+:root{
+  --bg:#E3EBE2; --surface:#FFFFFF; --ink:#1E2923; --muted:#64736A; --line:#CBD6CC;
+  --mine:#2F6B4F; --mine-ink:#FFFFFF; --mask:#38433D; --chip:#F1F5F0;
+  --p-human:#C35F3D; --p-animal:#B9860F; --p-life:#3F8F45; --p-eco:#23798A; --p-east:#77589F;
+  --good:#2C8653; --bad:#C0443A; --warn:#E9B949; --mine-soft:#EEF4EF;
+  --f-display:"Jua","IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --f-body:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#131A16; --surface:#202924; --ink:#E5ECE7; --muted:#92A299; --line:#2D3932;
+  --mine:#3D8A63; --mine-ink:#FFFFFF; --mask:#56645C; --chip:#28332D;
+  --p-human:#E0805E; --p-animal:#DDB13F; --p-life:#6CBB6F; --p-eco:#4FAFC0; --p-east:#A98BD3;
+  --good:#5BBE84; --bad:#EE7368; --warn:#E9B949; --mine-soft:#22332A; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#131A16; --surface:#202924; --ink:#E5ECE7; --muted:#92A299; --line:#2D3932;
+  --mine:#3D8A63; --mine-ink:#FFFFFF; --mask:#56645C; --chip:#28332D;
+  --p-human:#E0805E; --p-animal:#DDB13F; --p-life:#6CBB6F; --p-eco:#4FAFC0; --p-east:#A98BD3;
+  --good:#5BBE84; --bad:#EE7368; --warn:#E9B949; --mine-soft:#22332A; color-scheme:dark}
+
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;overflow:hidden}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible{outline:3px solid var(--warn);outline-offset:2px}
+.app{height:100%;max-width:760px;margin:0 auto;display:flex;flex-direction:column;background:var(--bg);position:relative}
+
+/* header */
+.top{display:flex;align-items:center;gap:12px;padding-block:12px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));background:var(--surface);border-bottom:1px solid var(--line)}
+.room{flex:1;min-width:0}
+.room h1{margin:0;font-family:var(--f-display);font-weight:400;font-size:20px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.room h1 small{font-family:var(--f-body);font-size:14px;color:var(--muted);margin-left:6px}
+.room p{margin:2px 0 0;font-size:12px;color:var(--muted)}
+.stat{display:flex;flex-direction:column;align-items:flex-end;gap:2px;font-variant-numeric:tabular-nums}
+.score{font-family:var(--f-display);font-size:22px;line-height:1}
+.round{font-size:12px;color:var(--muted)}
+.streak{font-size:12px;font-weight:700;color:var(--p-human);min-height:1em}
+.progress{height:4px;background:var(--line)}
+.progress i{display:block;height:100%;width:0;background:var(--mine);transition:width .4s}
+
+/* chat */
+.chat{flex:1;overflow-y:auto;padding-block:16px 8px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:12px;scroll-behavior:smooth}
+.row{display:flex;gap:10px;align-items:flex-start;max-width:88%;animation:pop .25s ease-out}
+.row.mine{align-self:flex-end;flex-direction:row-reverse}
+.av{flex:none;width:44px;height:44px;border-radius:16px;display:grid;place-items:center;font-family:var(--f-display);font-size:15px;color:#fff;background:var(--mask);transition:background .4s,transform .4s}
+.av.flip{transform:rotateY(360deg)}
+.av.asker{background:var(--chip);color:var(--muted);border:1px solid var(--line);font-size:18px}
+.who{font-size:13px;color:var(--muted);margin:0 0 4px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.who b{color:var(--ink);font-weight:700}
+.tag{font-size:11px;font-weight:700;padding:2px 7px;border-radius:999px;color:#fff}
+.body{min-width:0}
+.bubble{background:var(--surface);padding:10px 14px;border-radius:4px 16px 16px 16px;line-height:1.55;word-break:keep-all;overflow-wrap:anywhere;box-shadow:0 1px 0 rgba(0,0,0,.05)}
+.bubble.q{font-size:17px}
+.mine .bubble{background:var(--mine);color:var(--mine-ink);border-radius:16px 4px 16px 16px}
+.meta{font-size:11px;color:var(--muted);margin-top:4px}
+.typing{display:inline-flex;gap:4px;padding:14px}
+.typing i{width:7px;height:7px;border-radius:50%;background:var(--muted);animation:dot 1s infinite}
+.typing i:nth-child(2){animation-delay:.15s}.typing i:nth-child(3){animation-delay:.3s}
+.sys{align-self:center;max-width:94%;text-align:center;font-size:14px;line-height:1.5;background:color-mix(in srgb,var(--ink) 8%,transparent);color:var(--ink);padding:8px 14px;border-radius:14px;animation:pop .25s ease-out;word-break:keep-all}
+.sys.good{background:color-mix(in srgb,var(--good) 16%,transparent)}
+.sys.bad{background:color-mix(in srgb,var(--bad) 14%,transparent)}
+.sys .key{display:block;margin-top:4px;font-size:13px;color:var(--muted)}
+
+/* panel */
+.panel{background:var(--surface);border-top:1px solid var(--line);padding-block:12px 14px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:10px}
+.ask{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.ask h2{margin:0;font-family:var(--f-display);font-weight:400;font-size:19px}
+.fifty{border:1.5px dashed var(--line);background:transparent;border-radius:999px;padding:6px 12px;font-size:13px;font-weight:500;white-space:nowrap}
+.fifty:disabled{opacity:.4;cursor:default}
+.opts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.opts.five{grid-template-columns:repeat(3,minmax(0,1fr))}
+.opt{min-height:54px;border-radius:14px;border:1.5px solid var(--line);background:var(--chip);font-size:17px;font-weight:500;padding:8px;transition:transform .1s,background .2s,border-color .2s}
+.opt:active{transform:scale(.97)}
+.opt:disabled{cursor:default}
+.opt.gone{opacity:.25;text-decoration:line-through}
+.opt.right{background:var(--good);border-color:var(--good);color:#fff}
+.opt.wrong{border-color:var(--bad);color:var(--bad);animation:shake .35s}
+.opt .dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:1px}
+.next{min-height:54px;border:0;border-radius:14px;background:var(--mine);color:var(--mine-ink);font-family:var(--f-display);font-size:20px}
+
+/* screens */
+.screen{position:absolute;inset:0;background:var(--bg);overflow-y:auto;padding-block:28px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;align-items:center;gap:18px;z-index:5}
+.card{width:100%;max-width:560px;background:var(--surface);border-radius:22px;padding:24px 22px;display:flex;flex-direction:column;gap:14px}
+.title{font-family:var(--f-display);font-size:clamp(30px,7vw,44px);line-height:1.15;margin:0;text-align:center;text-wrap:balance}
+.lead{margin:0;text-align:center;color:var(--muted);line-height:1.6;word-break:keep-all}
+.preview{display:flex;flex-direction:column;gap:10px;background:var(--bg);border-radius:16px;padding:14px}
+.rules{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px}
+.rules li{display:flex;justify-content:space-between;gap:12px;font-size:15px;border-bottom:1px dashed var(--line);padding-bottom:8px;word-break:keep-all}
+.rules li b{font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--mine)}
+.big{min-height:60px;border:0;border-radius:16px;background:var(--mine);color:var(--mine-ink);font-family:var(--f-display);font-size:22px}
+.legend{display:flex;flex-wrap:wrap;gap:6px;justify-content:center}
+.final-score{font-family:var(--f-display);font-size:64px;line-height:1;text-align:center;font-variant-numeric:tabular-nums}
+.rank{text-align:center;font-family:var(--f-display);font-size:24px;color:var(--mine)}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;text-align:center}
+.stats div{background:var(--bg);border-radius:12px;padding:10px 4px}
+.stats b{display:block;font-family:var(--f-display);font-size:24px;font-weight:400;font-variant-numeric:tabular-nums}
+.stats span{font-size:12px;color:var(--muted)}
+.upload{margin:0;text-align:center;font-weight:700;font-size:16px;line-height:1.5;word-break:keep-all;padding:12px 14px;border-radius:14px;border:2px dashed var(--mine);color:var(--mine);background:var(--mine-soft)}
+.cap{min-height:56px;border:2px solid var(--mine);border-radius:16px;background:var(--surface);color:var(--mine);font-family:var(--f-display);font-size:20px}
+.cap:disabled{opacity:.6;cursor:default}
+.sheet{position:absolute;inset:0;z-index:10;background:rgba(10,16,12,.6);display:flex;align-items:center;justify-content:center;padding-block:20px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.sheet-box{width:100%;max-width:520px;max-height:100%;overflow-y:auto;background:var(--surface);border-radius:20px;padding:18px;display:flex;flex-direction:column;gap:12px}
+.sheet-box h3{margin:0;font-family:var(--f-display);font-weight:400;font-size:22px;text-align:center}
+.sheet-box img{width:100%;border-radius:14px;border:1px solid var(--line);-webkit-touch-callout:default}
+.sheet-box .hint{margin:0;text-align:center;font-size:14px;color:var(--muted);line-height:1.5;word-break:keep-all}
+.sheet-btns{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px}
+.sheet-btns button{min-height:52px;border-radius:14px;font-family:var(--f-display);font-size:18px;border:1.5px solid var(--line);background:var(--chip)}
+.sheet-btns .dl{display:grid;place-items:center;min-height:52px;border-radius:14px;font-family:var(--f-display);font-size:18px;text-decoration:none;border:1.5px solid var(--mine)}
+.sheet-btns .primary{background:var(--mine);color:var(--mine-ink);border-color:var(--mine)}
+.note h3{margin:6px 0 2px;font-family:var(--f-display);font-weight:400;font-size:22px}
+.note p.sub{margin:0;color:var(--muted);font-size:13px}
+.group{border-left:5px solid;padding:4px 0 4px 12px;display:flex;flex-direction:column;gap:8px}
+.group h4{margin:0;font-size:15px}
+.person{display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.5}
+.person .av{width:34px;height:34px;border-radius:12px;font-size:12px}
+.person b{display:inline-block;margin-right:4px}
+.person .mark{margin-left:auto;font-weight:700;white-space:nowrap;font-size:13px}
+.float{position:absolute;right:18px;top:56px;font-family:var(--f-display);font-size:26px;color:var(--good);pointer-events:none;animation:up 1s forwards;z-index:4}
+
+@keyframes pop{from{opacity:.3;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes dot{0%,80%,100%{opacity:.3}40%{opacity:1}}
+@keyframes shake{25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+@keyframes up{to{opacity:0;transform:translateY(-30px)}}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+@media (max-width:480px){.opts.five{grid-template-columns:repeat(2,minmax(0,1fr))}.opt{font-size:16px}}
+</style>
+<style>*,*::before,*::after{box-sizing:border-box}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+
+<div class="app" id="app">
+  <header class="top">
+    <div class="room">
+      <h1>자연 어떻게 볼래?<small>15</small></h1>
+      <p>도덕2 Ⅳ. 자연과의 관계 · 누가 보낸 톡일까?</p>
+    </div>
+    <div class="stat">
+      <div class="score" id="score">0</div>
+      <div class="round" id="round">0 / 12</div>
+      <div class="streak" id="streak"></div>
+    </div>
+  </header>
+  <div class="progress"><i id="bar"></i></div>
+  <main class="chat" id="chat" aria-live="polite"></main>
+  <section class="panel" id="panel" hidden>
+    <div class="ask"><h2 id="askText">누가 보냈을까?</h2><button class="fifty" id="fifty" type="button">반반 찬스 3</button></div>
+    <div class="opts" id="opts"></div>
+  </section>
+
+  <section class="screen" id="start">
+    <div class="card">
+      <h2 class="title">누가 보낸 톡일까?</h2>
+      <p class="lead">자연을 바라보는 학자들이 단톡방에 모였어요.<br>프로필이 가려진 메시지를 읽고 누가 보냈는지 맞혀 보세요.</p>
+      <div class="preview" aria-hidden="true">
+        <div class="row" style="max-width:100%"><div class="av asker">?</div><div class="body"><p class="who"><b>궁금이</b></p><div class="bubble">강아지도 생각할까요?</div></div></div>
+        <div class="row" style="max-width:100%"><div class="av">?</div><div class="body"><p class="who"><b>???</b></p><div class="bubble">동물은 생각을 못 해. 그냥 정교한 기계일 뿐임</div></div></div>
+      </div>
+      <ul class="rules">
+        <li>한 번에 맞히기<b>+100</b></li>
+        <li>틀려도 한 번 더 기회<b>+50</b></li>
+        <li>그 학자의 관점까지 맞히기<b>+50</b></li>
+        <li>연속으로 한 번에 맞히면 보너스<b>+20씩</b></li>
+        <li>보기 2개를 지워 주는 반반 찬스<b>3번</b></li>
+      </ul>
+      <div class="legend" id="legend"></div>
+      <button class="big" id="startBtn" type="button">단톡방 입장하기</button>
+    </div>
+  </section>
+
+  <section class="screen" id="end" hidden></section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script>
+const P = {
+  human:{name:"인간 중심주의", c:"--p-human"},
+  animal:{name:"동물 중심주의", c:"--p-animal"},
+  life:{name:"생명 중심주의", c:"--p-life"},
+  eco:{name:"생태 중심주의", c:"--p-eco"},
+  east:{name:"동양의 관점", c:"--p-east"}
+};
+const PORDER = ["human","animal","life","eco","east"];
+
+const M = {
+  aristotle:{name:"아리스토텔레스", s:"아리", p:"human", key:"이성적 능력을 지닌 인간은 동물보다 우월하다"},
+  aquinas:{name:"아퀴나스", s:"아퀴", p:"human", key:"신의 섭리에 따라 인간은 자연을 이용하도록 정해져 있다"},
+  bacon:{name:"베이컨", s:"베이", p:"human", key:"도구적 자연관 — 자연은 인류의 복지를 증진하는 수단"},
+  descartes:{name:"데카르트", s:"데카", p:"human", key:"이분법적 세계관 — 사유 능력이 없는 동물은 기계에 불과"},
+  kant:{name:"칸트", s:"칸트", p:"human", key:"이성적·자율적 인간만 목적 그 자체 / 동물 학대 금지는 간접적 의무"},
+  singer:{name:"싱어", s:"싱어", p:"animal", key:"공리주의 · 이익 평등 고려 원칙 · 쾌고 감수 능력"},
+  regan:{name:"레건", s:"레건", p:"animal", key:"의무론 · 일부 동물은 삶의 주체로서 본래적 가치를 지님"},
+  schweitzer:{name:"슈바이처", s:"슈바", p:"life", key:"생명 외경 사상 — 생명 유지·촉진은 선, 파괴·훼손은 악"},
+  taylor:{name:"테일러", s:"테일", p:"life", key:"모든 생명체는 고유의 선을 추구하는 목적론적 삶의 중심"},
+  leopold:{name:"레오폴드", s:"레오", p:"eco", key:"대지 윤리 — 생명 공동체의 온전함과 안정성 보전"},
+  naess:{name:"네스", s:"네스", p:"eco", key:"심층 생태주의 — 생활 양식과 세계관을 생태 중심적으로"},
+  confucian:{name:"유교", s:"유교", p:"east", key:"천인합일 — 인간과 자연의 조화"},
+  buddhism:{name:"불교", s:"불교", p:"east", key:"만물의 상호 의존성 자각 → 모든 생명에 자비"},
+  taoism:{name:"도가", s:"도가", p:"east", key:"인위적 욕망을 버리고 있는 그대로의 자연을 이상으로"}
+};
+const MKEYS = Object.keys(M);
+
+const Q = {
+  aristotle:[
+    ["사람이랑 동물은 뭐가 달라요?","인간은 이성적 능력을 가졌잖아. 그래서 동물보다 우월한 존재지 ㅇㅇ"],
+    ["식물이랑 동물은 왜 존재해요?","식물은 동물을 위해, 동물은 인간을 위해 있는 거야. 이성 있는 인간이 맨 위!"]],
+  aquinas:[
+    ["자연을 마음대로 써도 돼요?","신의 섭리에 따르면 인간은 자연을 이용하도록 정해져 있어. 신이 그렇게 만드셨거든"],
+    ["동물을 먹는 건 괜찮아요?","신이 정한 질서에서 동물은 인간이 쓰도록 주어진 거야. 섭리를 따르는 거지"]],
+  bacon:[
+    ["자연은 어떤 존재예요?","자연은 인류의 복지를 높이기 위한 수단! 도구로 잘 활용하면 돼"],
+    ["과학은 왜 배워요?","아는 것이 힘이야. 자연을 알아야 자연을 다스려서 인간 삶을 풍요롭게 만들지"]],
+  descartes:[
+    ["강아지도 생각할까요?","동물은 생각을 못 해. 그냥 정교한 기계일 뿐임"],
+    ["세상은 뭘로 이루어져 있어요?","정신이랑 물질, 딱 둘로 나뉨. 생각하는 정신은 인간뿐이고 동물은 물질이야"]],
+  kant:[
+    ["동물 학대하면 왜 안 돼요?","동물한테 직접 의무가 있어서가 아니야. 동물을 잔인하게 대하면 인간 자신의 도덕성이 약해지니까. 간접적 의무지"],
+    ["도덕적 지위는 누구한테 있어요?","이성적이고 자율적인 존재, 즉 인간만이 목적 그 자체야"]],
+  singer:[
+    ["동물도 도덕적으로 고려해야 해요?","고통과 쾌락을 느낄 수 있으면 당연하지! 쾌고 감수 능력이 기준이야"],
+    ["그래도 사람 이익이 더 중요한 거 아니에요?","같은 크기의 이익이면 인간이든 동물이든 똑같이 고려해야 해. 이익 평등 고려 원칙!"]],
+  regan:[
+    ["동물도 권리가 있어요?","일부 동물은 '삶의 주체'야. 그 자체로 본래적 가치가 있으니까 존중받아야 해"],
+    ["동물이 쓸모 있으니까 보호하는 거죠?","아니! 쓸모 때문이 아니라 동물이 지닌 본래적 가치 때문이야. 수단으로만 대하면 안 돼"]],
+  schweitzer:[
+    ["방에 모기 들어왔는데 잡아도 돼요?","모든 생명은 그 자체로 신성해… 생명을 파괴하는 건 악이니까 함부로 하면 안 돼"],
+    ["선이랑 악은 뭐예요?","생명을 유지하고 촉진하면 선, 생명을 파괴하고 훼손하면 악. 생명을 경외하자!"]],
+  taylor:[
+    ["길가 풀 한 포기도 중요해요?","그럼! 풀도 고유의 선을 추구하는 '목적론적 삶의 중심'이야"],
+    ["식물은 고통도 못 느끼는데요?","고통을 못 느껴도 살려고 자라고 꽃 피우잖아. 모든 생명체는 고유의 선이 있어"]],
+  leopold:[
+    ["흙이나 물, 땅도 도덕적으로 고려해야 해요?","대지 전체가 하나의 생명 공동체야. 대지 윤리 몰라?"],
+    ["옳은 행동은 뭐예요?","생명 공동체의 온전함과 안정성을 지키면 옳고, 해치면 그른 거야"]],
+  naess:[
+    ["분리수거만 잘하면 되죠?","그걸로는 부족해. 인간의 생활 양식이랑 세계관 자체를 생태 중심적으로 바꿔야 해"],
+    ["환경 문제 어떻게 해결해요?","겉만 고치는 얕은 해결 말고 깊게 바꾸자. 심층 생태주의!"]],
+  confucian:[
+    ["인간과 자연은 어떤 관계예요?","하늘과 사람이 하나 되는 천인합일! 서로 조화를 이루어야지"],
+    ["자연을 대하는 가장 좋은 경지는요?","인간과 자연이 하나로 어우러지는 경지, 천인합일을 지향해"]],
+  buddhism:[
+    ["개미 한 마리도 소중해요?","만물은 서로 기대어 연결돼 있어. 모든 생명에게 자비를 베풀어야 해"],
+    ["왜 모든 생명을 아껴야 해요?","모든 것은 서로 의존하고 있어. 그걸 깨달으면 자연스럽게 자비심이 생기지"]],
+  taoism:[
+    ["자연을 개발하면 더 편리하잖아요?","인위적인 욕망을 버려. 있는 그대로의 자연이 가장 이상적이야"],
+    ["인간은 자연이랑 다른 존재예요?","인간도 자연의 한 부분일 뿐이야. 억지로 꾸미지 말고 자연스럽게"]]
+};
+
+// 다른 학자의 반박 (반박하는 학자가 이미 공개됐을 때만 등장)
+const REPLY = {
+  descartes:["singer","기계라니;; 강아지 아프면 낑낑대는 거 안 보임? 고통을 느끼면 고려해야지"],
+  kant:["regan","동물 때문이 아니라고? 동물 자체가 존중받아야 하는 존재인데!"],
+  aristotle:["taylor","이성이 없어도 모든 생명은 고유의 선을 가진다고~"],
+  singer:["leopold","동물 하나하나만 보면 생태계 전체는 못 봐"],
+  taylor:["descartes","풀이 무슨 선이야. 생각도 못 하는데"],
+  bacon:["naess","자연을 수단으로만 보는 그런 생각이 환경 위기를 만든 거야…"],
+  leopold:["regan","생태계를 위해서라면 개체를 희생해도 된다는 거야? 그거 환경 파시즘 아님?"],
+  aquinas:["taoism","자연은 그냥 있는 그대로 두라니까"],
+  naess:["bacon","생활 방식을 다 바꾸라고? 과학 기술로 자연을 잘 이용하면 되지"]
+};
+
+const ROUNDS = 12;
+const $ = id => document.getElementById(id);
+const chat = $("chat"), opts = $("opts");
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const sleep = ms => new Promise(r => setTimeout(r, reduce ? Math.min(ms, 150) : ms));
+const shuffle = a => { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const col = p => `var(${P[p].c})`;
+const now = () => { const d = new Date(); let h = d.getHours(); const ap = h < 12 ? "오전" : "오후"; h = h % 12 || 12; return `${ap} ${h}:${String(d.getMinutes()).padStart(2, "0")}`; };
+
+let S;
+function newState() {
+  const keys = shuffle(MKEYS).slice(0, ROUNDS);
+  return { queue: keys.map(k => ({ k, q: Q[k][Math.floor(Math.random() * Q[k].length)] })), idx: 0, score: 0, streak: 0, best: 0, fifty: 3, revealed: new Set(), results: {}, firstTry: 0, pCorrect: 0 };
+}
+
+function el(html) { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; }
+function scroll() { requestAnimationFrame(() => chat.scrollTop = chat.scrollHeight); }
+function addRow(node) { chat.appendChild(node); scroll(); return node; }
+function addSys(html, cls = "") { return addRow(el(`<div class="sys ${cls}">${html}</div>`)); }
+function addMine(text) { addRow(el(`<div class="row mine"><div class="body"><div class="bubble">${text}</div><div class="meta" style="text-align:right">${now()}</div></div></div>`)); }
+async function typing(avHtml, name) {
+  const r = addRow(el(`<div class="row">${avHtml}<div class="body"><p class="who"><b>${name}</b></p><div class="bubble"><span class="typing"><i></i><i></i><i></i></span></div></div></div>`));
+  await sleep(750); return r;
+}
+async function say(avHtml, name, text, q = false) {
+  const r = await typing(avHtml, name);
+  const b = r.querySelector(".bubble"); b.textContent = text; if (q) b.classList.add("q");
+  b.insertAdjacentHTML("afterend", `<div class="meta">${now()}</div>`);
+  scroll(); return r;
+}
+function updateHUD() {
+  $("score").textContent = S.score;
+  $("round").textContent = `${Math.min(S.idx + 1, ROUNDS)} / ${ROUNDS}`;
+  $("streak").textContent = S.streak >= 2 ? `${S.streak}연속 정답 중` : "";
+  $("bar").style.width = `${(S.idx / ROUNDS) * 100}%`;
+  $("fifty").textContent = `반반 찬스 ${S.fifty}`;
+}
+function gain(n) {
+  if (n <= 0) return; S.score += n; updateHUD();
+  const f = el(`<div class="float">+${n}</div>`); $("app").appendChild(f); setTimeout(() => f.remove(), 1000);
+}
+function setPanel(title, buttons, five = false, showFifty = false) {
+  $("askText").textContent = title;
+  opts.className = "opts" + (five ? " five" : "");
+  opts.style.gridTemplateColumns = "";
+  opts.replaceChildren(...buttons);
+  $("fifty").hidden = !showFifty;
+  $("fifty").disabled = S.fifty <= 0;
+  $("panel").hidden = false; scroll();
+}
+function lockPanel() { opts.querySelectorAll("button").forEach(b => b.disabled = true); $("fifty").disabled = true; }
+
+async function playRound() {
+  updateHUD();
+  const { k, q } = S.queue[S.idx];
+  $("panel").hidden = true;
+  if (S.idx > 0) await sleep(250);
+  await say(`<div class="av asker">?</div>`, "궁금이", q[0]);
+  await sleep(300);
+  const row = await say(`<div class="av">?</div>`, "???", q[1], true);
+  askWho(k, row);
+}
+
+function askWho(k, row) {
+  const m = M[k];
+  const same = shuffle(MKEYS.filter(x => x !== k && M[x].p === m.p)).slice(0, 1);
+  const others = shuffle(MKEYS.filter(x => x !== k && !same.includes(x))).slice(0, 3 - same.length);
+  const choices = shuffle([k, ...same, ...others]);
+  let tries = 0;
+  const btns = choices.map(c => {
+    const b = el(`<button class="opt" type="button">${M[c].name}</button>`); b.dataset.k = c;
+    b.onclick = () => pick(c, b); return b;
+  });
+  async function pick(c, b) {
+    lockPanel();
+    addMine(`${M[c].name}!`);
+    await sleep(350);
+    if (c === k) {
+      b.classList.add("right");
+      const pts = tries === 0 ? 100 : 50;
+      if (tries === 0) { S.streak++; S.firstTry++; S.best = Math.max(S.best, S.streak); } else S.streak = 0;
+      const bonus = tries === 0 && S.streak >= 2 ? 20 * (S.streak - 1) : 0;
+      gain(pts + bonus);
+      S.results[k] = tries === 0 ? "first" : "second";
+      reveal(row, k);
+      addSys(`정답! <b>${m.name}</b>이(가) 보낸 톡이에요. +${pts}${bonus ? ` (연속 보너스 +${bonus})` : ""}`, "good");
+      askPerspective(k, row);
+    } else if (tries === 0) {
+      tries = 1; S.streak = 0; updateHUD();
+      b.classList.add("wrong", "gone");
+      addSys(`땡! ${M[c].name}은(는) 아니에요. 한 번 더 골라 보세요 (+50)`, "bad");
+      opts.querySelectorAll("button").forEach(x => { if (!x.classList.contains("gone")) x.disabled = false; });
+      $("fifty").disabled = true;
+    } else {
+      b.classList.add("wrong", "gone");
+      opts.querySelector(`[data-k="${k}"]`).classList.add("right");
+      S.results[k] = "miss";
+      reveal(row, k);
+      addSys(`아쉬워요. 정답은 <b>${m.name}</b>!`, "bad");
+      askPerspective(k, row);
+    }
+  }
+  setPanel("누가 보냈을까?", btns, false, true);
+  $("fifty").onclick = () => {
+    if (S.fifty <= 0) return;
+    S.fifty--; updateHUD();
+    const wrong = btns.filter(b => b.dataset.k !== k && !b.classList.contains("gone"));
+    shuffle(wrong).slice(0, 2).forEach(b => { b.classList.add("gone"); b.disabled = true; });
+    $("fifty").disabled = true;
+  };
+}
+
+function reveal(row, k) {
+  const av = row.querySelector(".av"); av.textContent = M[k].s; av.classList.add("flip");
+  row.querySelector(".who b").textContent = M[k].name;
+  S.revealed.add(k);
+}
+
+function askPerspective(k, row) {
+  const m = M[k];
+  const btns = PORDER.map(p => {
+    const b = el(`<button class="opt" type="button"><span class="dot" style="background:${col(p)}"></span>${P[p].name}</button>`);
+    b.onclick = async () => {
+      lockPanel();
+      addMine(P[p].name);
+      await sleep(350);
+      const ok = p === m.p;
+      if (ok) { b.classList.add("right"); gain(50); S.pCorrect++; }
+      else { b.classList.add("wrong"); [...opts.children][PORDER.indexOf(m.p)].classList.add("right"); }
+      row.querySelector(".av").style.background = col(m.p);
+      row.querySelector(".who").insertAdjacentHTML("beforeend", `<span class="tag" style="background:${col(m.p)}">${P[m.p].name}</span>`);
+      addSys(`${ok ? "관점도 정답! +50" : `관점은 <b>${P[m.p].name}</b>이에요.`}<span class="key">${m.name} · ${m.key}</span>`, ok ? "good" : "bad");
+      const rp = REPLY[k];
+      if (rp && S.revealed.has(rp[0]) && rp[0] !== k) {
+        await sleep(400);
+        const r = M[rp[0]];
+        const rr = await say(`<div class="av" style="background:${col(r.p)}">${r.s}</div>`, r.name, rp[1]);
+        rr.querySelector(".who").insertAdjacentHTML("beforeend", `<span class="tag" style="background:${col(r.p)}">${P[r.p].name}</span>`);
+      }
+      showNext();
+    };
+    return b;
+  });
+  setPanel(`${m.name}의 관점은?`, btns, true, false);
+}
+
+function showNext() {
+  const last = S.idx === ROUNDS - 1;
+  const b = el(`<button class="next" type="button">${last ? "결과 보기" : "다음 톡 보기"}</button>`);
+  b.onclick = () => { S.idx++; if (last) { updateHUD(); finish(); } else playRound(); };
+  opts.className = "opts"; opts.style.gridTemplateColumns = "1fr";
+  opts.replaceChildren(b); $("askText").textContent = last ? "마지막 톡이었어요" : "잘했어요!";
+  $("fifty").hidden = true; b.focus({ preventScroll: true }); scroll();
+}
+
+function rankOf(score) {
+  const max = ROUNDS * 150 + 20 * (ROUNDS * (ROUNDS - 1) / 2);
+  const r = score / (ROUNDS * 150);
+  if (r >= .9) return "생태계 수호자";
+  if (r >= .7) return "생명 공동체 우등생";
+  if (r >= .5) return "자연관 탐험가";
+  if (r >= .3) return "새싹 철학자";
+  return "다시 도전하는 씨앗";
+}
+
+function finish() {
+  $("panel").hidden = true;
+  const end = $("end");
+  const groups = PORDER.map(p => {
+    const people = MKEYS.filter(x => M[x].p === p).map(x => {
+      const r = S.results[x];
+      const mark = r === "first" ? `<span class="mark" style="color:var(--good)">한 번에 정답</span>` : r === "second" ? `<span class="mark" style="color:var(--p-animal)">두 번째 정답</span>` : r === "miss" ? `<span class="mark" style="color:var(--bad)">다시 보기</span>` : `<span class="mark" style="color:var(--muted)">이번엔 안 나옴</span>`;
+      return `<div class="person"><div class="av" style="background:${col(p)}">${M[x].s}</div><div style="min-width:0;flex:1"><b>${M[x].name}</b>${M[x].key}</div>${mark}</div>`;
+    }).join("");
+    return `<div class="group" style="border-color:${col(p)}"><h4 style="color:${col(p)}">${P[p].name}</h4>${people}</div>`;
+  }).join("");
+  end.innerHTML = `
+    <div class="card" id="resultCard">
+      <p class="lead">최종 점수</p>
+      <div class="final-score">${S.score}</div>
+      <div class="rank">${rankOf(S.score)}</div>
+      <div class="stats">
+        <div><b>${S.firstTry}/${ROUNDS}</b><span>한 번에 정답</span></div>
+        <div><b>${S.pCorrect}/${ROUNDS}</b><span>관점 정답</span></div>
+        <div><b>${S.best}</b><span>최대 연속</span></div>
+      </div>
+      <p class="upload">게임 마지막 최종 결과를 캡쳐해서 띵커벨보드에 올리세요.</p>
+      <button class="cap" id="capBtn" type="button" data-html2canvas-ignore>결과 화면 캡쳐하기</button>
+      <button class="big" id="again" type="button" data-html2canvas-ignore>다시 도전하기</button>
+      <p class="lead" style="font-size:13px" data-html2canvas-ignore>다시 하면 다른 질문과 다른 학자 순서로 나와요.</p>
+    </div>
+    <div class="card note">
+      <h3>정리 노트</h3>
+      <p class="sub">도덕적 고려의 범위가 인간 → 동물 → 모든 생명 → 생태계 전체로 넓어져요.</p>
+      ${groups}
+    </div>`;
+  end.hidden = false; end.scrollTop = 0;
+  $("again").onclick = start;
+  $("capBtn").onclick = capture;
+}
+
+let downloadsP = null;
+function getDownloads() {
+  if (!downloadsP) downloadsP = (window.claude?.use ? window.claude.use("downloads") : Promise.resolve(null)).catch(() => null);
+  return downloadsP;
+}
+
+async function capture() {
+  const btn = $("capBtn");
+  if (typeof html2canvas !== "function") { btn.textContent = "캡쳐 기능을 불러오지 못했어요. 화면 캡쳐를 해 주세요"; return; }
+  btn.disabled = true; btn.textContent = "캡쳐하는 중…";
+  try {
+    if (document.fonts?.ready) await document.fonts.ready;
+    const card = $("resultCard");
+    const bg = getComputedStyle(document.body).backgroundColor;
+    const canvas = await html2canvas(card, { scale: 2, backgroundColor: bg, useCORS: true, logging: false });
+    // 카드 둘레에 여백을 둔 이미지로 만들기
+    const pad = 40, out = document.createElement("canvas");
+    out.width = canvas.width + pad * 2; out.height = canvas.height + pad * 2;
+    const ctx = out.getContext("2d"); ctx.fillStyle = bg; ctx.fillRect(0, 0, out.width, out.height);
+    ctx.drawImage(canvas, pad, pad);
+    const blob = await new Promise(r => out.toBlob(r, "image/png"));
+    showSheet(out.toDataURL("image/png"), blob);
+  } catch (e) {
+    btn.textContent = "캡쳐에 실패했어요. 화면 캡쳐를 해 주세요";
+    btn.disabled = false; return;
+  }
+  btn.disabled = false; btn.textContent = "결과 화면 캡쳐하기";
+}
+
+async function showSheet(url, blob) {
+  const downloads = await getDownloads();
+  const sheet = el(`<div class="sheet" role="dialog" aria-modal="true" aria-label="결과 이미지">
+    <div class="sheet-box">
+      <h3>결과 이미지가 만들어졌어요</h3>
+      <img alt="최종 결과 이미지" src="${url}">
+      <p class="hint" id="sheetHint">저장하기를 누르거나, 이미지를 길게 눌러 저장한 뒤 띵커벨보드에 올리세요.</p>
+      <div class="sheet-btns">
+        ${downloads ? `<button class="primary" id="saveImg" type="button">이미지 저장하기</button>` : `<a class="primary dl" id="dlImg" href="${url}" download="자연관_단톡방_결과_${S.score}점.png">이미지 저장하기</a>`}
+        <button id="closeSheet" type="button">닫기</button>
+      </div>
+    </div></div>`);
+  $("app").appendChild(sheet);
+  sheet.querySelector("#closeSheet").onclick = () => sheet.remove();
+  sheet.onclick = e => { if (e.target === sheet) sheet.remove(); };
+  const save = sheet.querySelector("#saveImg");
+  if (save) save.onclick = async () => {
+    save.disabled = true;
+    try {
+      await downloads.save({ filename: `자연관_단톡방_결과_${S.score}점.png`, data: blob });
+      sheet.querySelector("#sheetHint").textContent = "저장했어요! 이제 띵커벨보드에 올려 주세요.";
+    } catch (e) {
+      const hint = sheet.querySelector("#sheetHint");
+      if (e?.code === "declined") hint.textContent = "저장을 취소했어요. 다시 누르거나 이미지를 길게 눌러 저장할 수 있어요.";
+      else if (e?.code === "rate_limited") hint.textContent = "잠시 후 다시 눌러 주세요.";
+      else { hint.textContent = "여기서는 저장하기가 안 돼요. 이미지를 길게 눌러 저장해 주세요."; save.remove(); return; }
+    }
+    save.disabled = false;
+  };
+}
+
+function start() {
+  S = newState();
+  chat.replaceChildren();
+  opts.style.gridTemplateColumns = "";
+  $("start").hidden = true; $("end").hidden = true;
+  addSys(`궁금이님이 학자 ${MKEYS.length}명을 초대했습니다.<span class="key">프로필이 가려진 사람이 누구인지 맞혀 보세요!</span>`);
+  updateHUD();
+  playRound();
+}
+
+$("legend").innerHTML = PORDER.map(p => `<span class="tag" style="background:${col(p)}">${P[p].name}</span>`).join("");
+$("startBtn").onclick = start;
+</script>
+
+</body>
+</html>
